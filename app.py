@@ -219,6 +219,7 @@ if not results.multi_face_landmarks:
     )
     st.stop()
 
+# FIX: Access the first frame list object
 landmarks = results.multi_face_landmarks[0].landmark
 
 # ── Face Zone Landmark Indices ────────────────────────────────
@@ -261,4 +262,3 @@ raw_oil = cv2.morphologyEx(raw_oil, cv2.MORPH_OPEN, kernel)
 oil_mask = cv2.bitwise_and(raw_oil, face_mask)
 
 # 3. Pigmentation
-hue_ch = hsv[:, :, 0].astype(np.float32)
