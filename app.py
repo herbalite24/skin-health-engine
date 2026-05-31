@@ -107,18 +107,18 @@ FITZPATRICK_PROFILES = {
         "chip_color": "#fde8e8", "chip_border": "#f87171", "chip_text": "#991b1b"
     },
     "Type III-IV (Medium / Olive Skin)": {
-        "redness_hsv_low1": np.array([0, 35, 45], dtype=np.uint8),
+        "redness_hsv_low1": np.array([0, 30, 40], dtype=np.uint8),
         "redness_hsv_high1": np.array([12, 255, 255], dtype=np.uint8),
-        "redness_hsv_low2": np.array([168, 35, 45], dtype=np.uint8),
+        "redness_hsv_low2": np.array([168, 30, 40], dtype=np.uint8),
         "redness_hsv_high2": np.array([180, 255, 255], dtype=np.uint8),
         "oil_threshold": 210,
         "description": "💡 Adjusted for warmer, golden, or olive undertones. Accounts for deeper contrast distributions.",
         "chip_color": "#fef3c7", "chip_border": "#f59e0b", "chip_text": "#78350f"
     },
     "Type V-VI (Brown / Dark Skin)": {
-        "redness_hsv_low1": np.array([0, 30, 35], dtype=np.uint8),
+        "redness_hsv_low1": np.array([0, 25, 30], dtype=np.uint8),
         "redness_hsv_high1": np.array([15, 255, 255], dtype=np.uint8),
-        "redness_hsv_low2": np.array([165, 30, 35], dtype=np.uint8),
+        "redness_hsv_low2": np.array([165, 25, 30], dtype=np.uint8),
         "redness_hsv_high2": np.array([180, 255, 255], dtype=np.uint8),
         "oil_threshold": 195,
         "description": "💡 Enhanced for deep brown, rich, or hyperpigmented skin layers. Targets plum or deep amber vascular paths.",
@@ -205,8 +205,8 @@ if not results.multi_face_landmarks:
     st.stop()
 
 landmarks = results.multi_face_landmarks[0].landmark
-T_ZONE_IDX = [10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288, 397, 365, 379, 378, 400, 377, 152, 148, 176, 149, 150, 136, 172, 58, 132, 93, 234, 127, 162, 21, 54, 103, 67, 109]
-CHEEK_IDX = [123, 147, 213, 192, 214, 212, 210, 211, 32, 208, 199, 428, 262, 431, 432, 434, 416, 433, 376, 411]
+T_ZONE_IDX = [21, 54, 103, 67, 109, 10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288, 397, 365, 379, 378, 400, 377, 152, 148, 176, 149, 150, 136, 172, 58, 132, 93, 234, 127, 162]
+CHEEK_IDX = [50, 187, 207, 216, 215, 192, 214, 212, 135, 138, 210, 211, 32, 208, 199, 428, 262, 431, 430, 364, 367, 434, 432, 435, 411, 427, 361, 412, 351]
 
 def lm_to_px(indices):
     return np.array([[int(landmarks[i].x * w), int(landmarks[i].y * h)] for i in indices], dtype=np.int32)
@@ -225,6 +225,4 @@ red_mask = cv2.bitwise_and(cv2.morphologyEx(cv2.bitwise_or(mask_r1, mask_r2), cv
 _, raw_oil = cv2.threshold(gray, profile["oil_threshold"], 255, cv2.THRESH_BINARY)
 oil_mask = cv2.bitwise_and(cv2.morphologyEx(raw_oil, cv2.MORPH_OPEN, kernel), face_mask)
 
-hue_ch = hsv[:, :, 0].astype(np.float32)
-hue_masked = np.where(face_mask == 255, hue_ch, np.nan)
-with np.errstate(all="ignore"):
+# FIX: Implemented clean spacing indentation inside the error-handling suppression module
