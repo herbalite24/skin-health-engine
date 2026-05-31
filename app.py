@@ -3,6 +3,7 @@ import cv2
 import numpy as np
 import warnings
 from PIL import Image
+import base64
 
 # ── Mediapipe — top-level import with clear HF/Streamlit error guidance ─
 try:
@@ -18,7 +19,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# ── CSS ───────────────────────────────────────────────────────
+# ── CSS Style Adjustments ───────────────────────────────────────
 st.markdown("""
 <style>
 @import url('https://googleapis.com');
@@ -76,189 +77,154 @@ html, body, [class*="css"] { font-family: 'DM Sans', sans-serif; }
     text-transform: uppercase; color: #94a3b8; margin: 20px 0 10px;
 }
 .col-gap-right { padding-right: 1.5rem; }
+.ai-box {
+    background: #f0fdfa; border: 1px solid #5eead4; border-radius: 12px;
+    padding: 18px; margin-top: 14px;
+}
 </style>
 """, unsafe_allow_html=True)
 
-# ── Hard-stop if mediapipe missing ───────────────────────────
 if not _MP_AVAILABLE:
-    st.error(
-        "**MediaPipe not found.** Verify that it is listed in your "
-        "`requirements.txt` file and wait for Streamlit to rebuild."
-    )
+    st.error("**MediaPipe not found.** Verify your dependencies inside `requirements.txt`.")
     st.stop()
 
-# ── Cache FaceMesh — initialize ONCE across all reruns ────────
 @st.cache_resource(show_spinner=False)
 def load_face_mesh():
     mp_fm = mp.solutions.face_mesh
-    return mp_fm.FaceMesh(
-        static_image_mode=True,
-        max_num_faces=1,
-        refine_landmarks=True,
-        min_detection_confidence=0.5
-    )
+    return mp_fm.FaceMesh(static_image_mode=True, max_num_faces=1, refine_landmarks=True, min_detection_confidence=0.5)
 
-# ── Constants ─────────────────────────────────────────────────
 IMAGE_MAX_DIM = 1280
 
-# ── Fitzpatrick Profiles ──────────────────────────────────────
+# ── Fitzpatrick Profiles with Clear Language ───────────────────
 FITZPATRICK_PROFILES = {
-    "Type I-II (Very Fair / Fair)": {
-        "redness_hsv_low1": np.array([0, 25, 120], dtype=np.uint8),
-        "redness_hsv_high1": np.array([12, 180, 255], dtype=np.uint8),
-        "redness_hsv_low2": np.array([168, 25, 120], dtype=np.uint8),
-        "redness_hsv_high2": np.array([180, 180, 255], dtype=np.uint8),
+    "Type I-II (Very Fair / Fair Skin)": {
+        "redness_hsv_low1": np.array([0, 40, 50], dtype=np.uint8),
+        "redness_hsv_high1": np.array([10, 255, 255], dtype=np.uint8),
+        "redness_hsv_low2": np.array([170, 40, 50], dtype=np.uint8),
+        "redness_hsv_high2": np.array([180, 255, 255], dtype=np.uint8),
         "oil_threshold": 220,
-        "description": "Baseline thresholds. Redness presents as pink-red.",
+        "description": "💡 Optimized for pale, light, or pink-undertone profiles. Redness presents explicitly as pink-red tones.",
         "chip_color": "#fde8e8", "chip_border": "#f87171", "chip_text": "#991b1b"
     },
-    "Type III-IV (Medium / Olive)": {
-        "redness_hsv_low1": np.array([0, 40, 80], dtype=np.uint8),
-        "redness_hsv_high1": np.array([15, 220, 255], dtype=np.uint8),
-        "redness_hsv_low2": np.array([165, 40, 80], dtype=np.uint8),
-        "redness_hsv_high2": np.array([180, 220, 255], dtype=np.uint8),
+    "Type III-IV (Medium / Olive Skin)": {
+        "redness_hsv_low1": np.array([0, 35, 45], dtype=np.uint8),
+        "redness_hsv_high1": np.array([12, 255, 255], dtype=np.uint8),
+        "redness_hsv_low2": np.array([168, 35, 45], dtype=np.uint8),
+        "redness_hsv_high2": np.array([180, 255, 255], dtype=np.uint8),
         "oil_threshold": 210,
-        "description": "Adjusted for warmer undertones. Redness may appear deeper.",
+        "description": "💡 Adjusted for warmer, golden, or olive undertones. Accounts for deeper contrast distributions.",
         "chip_color": "#fef3c7", "chip_border": "#f59e0b", "chip_text": "#78350f"
     },
-    "Type V-VI (Brown / Deep)": {
-        "redness_hsv_low1": np.array([0, 60, 60], dtype=np.uint8),
-        "redness_hsv_high1": np.array([20, 255, 220], dtype=np.uint8),
-        "redness_hsv_low2": np.array([160, 60, 60], dtype=np.uint8),
-        "redness_hsv_high2": np.array([180, 255, 220], dtype=np.uint8),
+    "Type V-VI (Brown / Dark Skin)": {
+        "redness_hsv_low1": np.array([0, 30, 35], dtype=np.uint8),
+        "redness_hsv_high1": np.array([15, 255, 255], dtype=np.uint8),
+        "redness_hsv_low2": np.array([165, 30, 35], dtype=np.uint8),
+        "redness_hsv_high2": np.array([180, 255, 255], dtype=np.uint8),
         "oil_threshold": 195,
-        "description": "Wider hue range for deeper tones. Pigmentation analysis enhanced.",
+        "description": "💡 Enhanced for deep brown, rich, or hyperpigmented skin layers. Targets plum or deep amber vascular paths.",
         "chip_color": "#fdf2f8", "chip_border": "#a855f7", "chip_text": "#6b21a8"
     }
 }
 
-# ── Header ────────────────────────────────────────────────────
-st.markdown('<div class="hero-title">🔬 Skin Analyzer Pro</div>', unsafe_allow_html=True)
-st.markdown(
-    '<div class="hero-sub">Computer vision skin surface analysis &middot; '
-    'Fitzpatrick-calibrated &middot; No AI guesswork</div>',
-    unsafe_allow_html=True
-)
-
-# ── Sidebar Settings ──────────────────────────────────────────
+# ── Visitor-Friendly Sidebar Layout ───────────────────────────
 with st.sidebar:
-    st.markdown("### ⚙️ Analysis Settings")
+    st.markdown("### ⚙️ Analysis Setup & Settings")
+    st.markdown("Before executing your scan, adjust these parameters to align with your profile configuration.")
+    
     skin_tone_key = st.selectbox(
-        "Fitzpatrick Skin Type",
+        "1. Select Your Skin Tone Profile",
         list(FITZPATRICK_PROFILES.keys()),
-        help="Select the closest match to your skin tone for accurate calibration."
+        help="Choosing your general category calibrates the mathematical thresholds to account for natural skin tone lighting differences."
     )
     profile = FITZPATRICK_PROFILES[skin_tone_key]
+    
     st.markdown(
-        f'<div style="margin-top:8px;padding:10px 12px;background:#f8fafc;'
-        f'border-radius:8px;font-size:0.8rem;color:#475569;line-height:1.5;">'
-        f'<b>Calibration:</b> {profile["description"]}</div>',
+        f'<div style="padding:12px; background:#f0fdfa; border: 1px solid #ccfbf1; border-radius:8px; font-size:0.82rem; color:#0f766e; line-height:1.4;">'
+        f'{profile["description"]}</div>',
         unsafe_allow_html=True
     )
-    st.markdown("---")
-    show_masks = st.checkbox("Show raw detection masks", value=False)
+    st.markdown("<br>", unsafe_allow_html=True)
+    
     blur_threshold = st.slider(
-        "Sharpness threshold", 30, 150, 65,
-        help="Lower = accept blurrier images. 65 is recommended."
+        "2. Image Sharpness Cutoff Filter", 
+        min_value=30, max_value=150, value=65,
+        help="Higher values demand a perfectly sharp, crisp photo. Lower values allow softer or slightly compressed camera lenses. Standard recommendation is 65."
     )
+    st.markdown(f"**Current Status Limit:** App will automatically reject images scoring below `{blur_threshold}` focus accuracy.")
 
-# ── Upload ────────────────────────────────────────────────────
-uploaded_file = st.file_uploader(
-    "Upload a clear, front-facing photo (JPG / PNG)",
-    type=["jpg", "jpeg", "png"]
-)
+# ── Main Input Methods ────────────────────────────────────────
+input_method = st.radio("Choose photo source:", ["📸 Take Live Photo", "📁 Upload Image File"], horizontal=True)
+image_file = None
 
-if uploaded_file is None:
-    st.info("📷 Upload a photo above to begin analysis.")
-    st.markdown(
-        "**Tips for best results:**\n"
-        "- Use natural lighting or a ring light\n"
-        "- Face the camera directly\n"
-        "- Avoid heavy filters or makeup\n"
-        "- Minimum 720p resolution recommended"
-    )
+if input_method == "📸 Take Live Photo":
+    image_file = st.camera_input("Center your face in the frame and click take photo")
+else:
+    image_file = st.file_uploader("Upload a clear, front-facing photo (JPG / PNG)", type=["jpg", "jpeg", "png"])
+
+if image_file is None:
+    st.info("📷 Please provide a photo above to begin analysis.")
     st.stop()
 
-# ── Decode Image ──────────────────────────────────────────────
-uploaded_file.seek(0)
-file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
+st.markdown("<br>", unsafe_allow_html=True)
+start_analysis = st.button("🚀 Start Skin Analysis", type="primary", use_container_width=True)
+
+if not start_analysis:
+    st.write("✨ Photo loaded. Choose your configuration settings in the sidebar and press start above.")
+    st.stop()
+
+# ── Computer Vision Pipelines ──────────────────────────────────
+image_file.seek(0)
+file_bytes = np.asarray(bytearray(image_file.read()), dtype=np.uint8)
 img_bgr = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
 
 if img_bgr is None:
-    st.error("❌ Could not decode the image. Please try a different file.")
+    st.error("❌ Could not decode the image file.")
     st.stop()
 
-# Resize oversized images to safeguard memory limits on Cloud host
 h, w = img_bgr.shape[:2]
 if max(h, w) > IMAGE_MAX_DIM:
     scale = IMAGE_MAX_DIM / max(h, w)
     img_bgr = cv2.resize(img_bgr, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
     h, w = img_bgr.shape[:2]
 
-# ── Sharpness Check ───────────────────────────────────────────
 gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
 blur_score = float(cv2.Laplacian(gray, cv2.CV_64F).var())
 if blur_score < blur_threshold:
-    st.error(
-        f"❌ Image too blurry (score: {blur_score:.1f}, minimum: {blur_threshold}). "
-        "Please retake in brighter, steadier conditions."
-    )
+    st.error(f"❌ Image Rejected: Too blurry (focus score: {blur_score:.1f}, requested threshold limit: {blur_threshold}). Please retake with steadier hands.")
     st.stop()
 
-# ── Face Mesh Detection ───────────────────────────────────────
-face_mesh = load_face_mesh()
-img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
-with warnings.catch_warnings():
-    warnings.simplefilter("ignore")
-    results = face_mesh.process(img_rgb)
+with st.spinner("Processing computer vision structural scans..."):
+    face_mesh = load_face_mesh()
+    img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        results = face_mesh.process(img_rgb)
 
 if not results.multi_face_landmarks:
-    st.error(
-        "❌ No face detected. Ensure your full face is visible, "
-        "well-lit, and facing the camera directly."
-    )
+    st.error("❌ Analysis Failed: No human face detected. Center your face, avoid extreme angles, and ensure clear lighting.")
     st.stop()
 
-# FIX: Target list element index lookup
 landmarks = results.multi_face_landmarks[0].landmark
-
-# ── Face Zone Landmark Indices ────────────────────────────────
-T_ZONE_IDX = [
-    10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288,
-    397, 365, 379, 378, 400, 377, 152, 148, 176, 149, 150, 136,
-    172, 58, 132, 93, 234, 127, 162, 21, 54, 103, 67, 109
-]
-CHEEK_IDX = [
-    205, 203, 98, 97, 2, 327, 326, 425, 423, 427, 207,
-    116, 111, 117, 118, 101, 212, 214, 192, 210, 211,
-    345, 340, 346, 347, 330, 432, 434, 416, 430, 431
-]
+T_ZONE_IDX = [10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288, 397, 365, 379, 378, 400, 377, 152, 148, 176, 149, 150, 136, 172, 58, 132, 93, 234, 127, 162, 21, 54, 103, 67, 109]
+CHEEK_IDX = [123, 147, 213, 192, 214, 212, 210, 211, 32, 208, 199, 428, 262, 431, 432, 434, 416, 433, 376, 411]
 
 def lm_to_px(indices):
-    return np.array(
-        [[int(landmarks[i].x * w), int(landmarks[i].y * h)] for i in indices],
-        dtype=np.int32
-    )
+    return np.array([[int(landmarks[i].x * w), int(landmarks[i].y * h)] for i in indices], dtype=np.int32)
 
-t_zone_pts = lm_to_px(T_ZONE_IDX)
-cheek_pts = lm_to_px(CHEEK_IDX)
 face_mask = np.zeros((h, w), dtype=np.uint8)
-cv2.fillPoly(face_mask, [t_zone_pts, cheek_pts], 255)
+cv2.fillPoly(face_mask, [lm_to_px(T_ZONE_IDX), lm_to_px(CHEEK_IDX)], 255)
 total_face_px = max(int(np.sum(face_mask == 255)), 1)
 
-# ── Pixel Analysis ────────────────────────────────────────────
 hsv = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV)
 kernel = np.ones((3, 3), np.uint8)
 
-# 1. Redness
 mask_r1 = cv2.inRange(hsv, profile["redness_hsv_low1"], profile["redness_hsv_high1"])
 mask_r2 = cv2.inRange(hsv, profile["redness_hsv_low2"], profile["redness_hsv_high2"])
-raw_red = cv2.morphologyEx(cv2.bitwise_or(mask_r1, mask_r2), cv2.MORPH_OPEN, kernel)
-red_mask = cv2.bitwise_and(raw_red, face_mask)
+red_mask = cv2.bitwise_and(cv2.morphologyEx(cv2.bitwise_or(mask_r1, mask_r2), cv2.MORPH_OPEN, kernel), face_mask)
 
-# 2. Oiliness / sebum shine
 _, raw_oil = cv2.threshold(gray, profile["oil_threshold"], 255, cv2.THRESH_BINARY)
-raw_oil = cv2.morphologyEx(raw_oil, cv2.MORPH_OPEN, kernel)
-oil_mask = cv2.bitwise_and(raw_oil, face_mask)
+oil_mask = cv2.bitwise_and(cv2.morphologyEx(raw_oil, cv2.MORPH_OPEN, kernel), face_mask)
 
-# 3. Pigmentation
+hue_ch = hsv[:, :, 0].astype(np.float32)
+hue_masked = np.where(face_mask == 255, hue_ch, np.nan)
+with np.errstate(all="ignore"):
