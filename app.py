@@ -219,7 +219,7 @@ if not results.multi_face_landmarks:
     )
     st.stop()
 
-# FIX: Access the first frame list object
+# FIX: Target index list wrapper to avoid execution crash
 landmarks = results.multi_face_landmarks[0].landmark
 
 # ── Face Zone Landmark Indices ────────────────────────────────
@@ -261,4 +261,3 @@ _, raw_oil = cv2.threshold(gray, profile["oil_threshold"], 255, cv2.THRESH_BINAR
 raw_oil = cv2.morphologyEx(raw_oil, cv2.MORPH_OPEN, kernel)
 oil_mask = cv2.bitwise_and(raw_oil, face_mask)
 
-# 3. Pigmentation
