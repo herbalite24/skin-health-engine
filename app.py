@@ -1,3 +1,10 @@
+# ============================================================
+# SKIN ANALYZER PRO — Streamlit Cloud, 2-file deploy
+# No mediapipe, no libGL dependency.
+# Face detection via OpenCV Haar Cascade (ships with opencv).
+# Works on Python 3.11-3.14, NumPy <2, Debian Trixie.
+# ============================================================
+
 import streamlit as st
 import cv2
 import numpy as np
